@@ -6,7 +6,8 @@ type IB =
 
 
 type TypeList =
-    abstract member Get: unit -> 'f
+    interface
+    end
 
 and Nil =
     | Nil
@@ -29,6 +30,7 @@ and Fill<'i, 'r> =
     interface TypeList
 
 and Provider = | Provide
+and Recurser = | Recurser
 
 and Resolve =
     private
@@ -38,8 +40,8 @@ and Resolve =
     static member inline (|**)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
     static member inline (|***<)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
     static member inline (|***>)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
-    static member inline (|****)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
-    static member inline (|****)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****<)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****>)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
 
     //static member inline ($)(Resolve, (Cons(Hole(fn), tail): Cons<Hole<'i, 'r>, _>, i: 'i)) : Cons<Fill<'i, 'r>, _> =
     //    Cons(Fill(i, fn), tail)
@@ -61,6 +63,35 @@ and Resolve =
     static member inline (|****<)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
     static member inline (|****>)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
 
+
+[<AutoOpen>]
+module NilLowPriority =
+    type Provider with
+
+        //static member inline op_Explicit
+        //    (
+        //        Provide,
+        //        f,
+        //        _,
+        //        (Cons(head, _): Cons<Hole<'iOther, 'r>, Nil>, i: 'i)
+        //    ) : Cons<Hole<'iOther, 'r>, Nil> =
+        //    Cons(head, Nil)
+        static member inline op_Explicit(Provide, f, _, (Nil: Nil, i: 'i)) : Nil = Nil
+
+//[<AutoOpen>]
+//module NilHighPriority =
+//    type Provider with
+
+//        static member inline op_Explicit
+//            (
+//                Provide,
+//                f,
+//                _,
+//                (Cons(head, _): Cons<Hole<'i, 'r>, Nil>, i: 'i)
+//            ) : Cons<Hole<'i, 'r>, Nil> =
+//            let newHead = f |***< (head, i)
+//            Cons(newHead, Nil)
+
 [<AutoOpen>]
 module LowPriority =
     type Provider with
@@ -69,68 +100,48 @@ module LowPriority =
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> 'b,
+                recurse: ('a -> 'i -> 'b),
                 (Cons(hole, tail): Cons<Hole<'iOther, 'r>, 'a>, i: 'i)
             ) : Cons<Hole<'iOther, 'r>, 'b> =
             let newHead = hole
-            let newTail = f |* (recurse (tail, i))
+            let newTail: 'b = recurse tail i
             Cons(newHead, newTail)
 
         static member inline op_Explicit
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> 'b,
+                recurse: ('a -> 'i -> 'b),
+                ((Cons(fill, tail)): Cons<Fill<'i, 'r>, 'a>, i: 'i)
+            ) : Cons<Fill<'i, 'r>, 'b> =
+            let newHead = fill
+            let newTail: 'b = recurse tail i
+            Cons(newHead, newTail)
+
+        static member inline op_Explicit
+            (
+                Provide,
+                f,
+                recurse: ('a -> 'i -> 'b),
                 ((Cons(fill, tail)): Cons<Fill<'iOther, 'r>, 'a>, i: 'i)
             ) : Cons<Fill<'iOther, 'r>, 'b> =
             let newHead = fill
-            let newTail = f |** (recurse (tail, i))
+            let newTail: 'b = recurse tail i
             Cons(newHead, newTail)
 
-//static member inline op_Explicit
-//    (
-//        Provide,
-//        f,
-//        recurse: ('a * 'i) -> #TypeList,
-//        (Cons(head, tail): Cons<'c, 'a>, i: 'i)
-//    ) : Cons<#TypeList, #TypeList> =
-//    let newHead = f $ (head, i)
-//    let newTail = f $ (recurse (tail, i))
-//    Cons(newHead, newTail)
-
-
-//static member inline op_Explicit
-//    (
-//        Provide,
-//        f,
-//        (Cons(head, _): Cons<_, Nil>, _: 'i)
-//    ) : Cons<_, Nil> =
-//    Cons(head, Nil)
-
 [<AutoOpen>]
-module HighPriority =
+module HigherPriority =
     type Provider with
 
         static member inline op_Explicit
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> 'b,
+                recurse: ('a -> 'i -> 'b),
                 (Cons(hole, tail): Cons<Hole<'i, 'r>, 'a>, i: 'i)
             ) : Cons<Fill<'i, 'r>, 'b> =
             let newHead = f |***< (hole, i)
-            let newTail = f |***> (recurse (tail, i))
-            Cons(newHead, newTail)
-
-        static member inline op_Explicit
-            (
-                Provide,
-                f,
-                recurse: ('a * 'i) -> 'b,
-                ((Cons(fill, tail)): Cons<Fill<'i, 'r>, 'a>, i: 'i)
-            ) : Cons<Fill<'i, 'r>, 'b> =
-            let newHead = f |****< (fill, i)
-            let newTail = f |****> (recurse (tail, i))
+            let newTail: 'b = recurse tail i
             Cons(newHead, newTail)
 
 
@@ -139,25 +150,14 @@ module HighPriority =
 //    (
 //        Provide,
 //        f,
-//        (Cons(head, _): Cons<Hole<'iOther, 'r>, Nil>, _: 'i)
-//    ) : Cons<Hole<'iOther, 'r>, Nil> =
-//    Cons(head, Nil)
+//        recurse,
+//        (Cons(head, tail): Cons<#NotNil, #NotNil>, i: 'i)
+//    ) : Cons<#TypeList, #TypeList> =
+//    let newHead = f |***< (head, i)
+//    let newTail = f |***> (recurse tail i, i)
+//    Cons(newHead, newTail)
 
-//static member inline op_Explicit
-//    (
-//        Provide,
-//        f,
-//        (Cons(head, _): Cons<Fill<IA, int>, Nil>, _: IA)
-//    ) : Cons<Fill<IA, int>, Nil> =
-//    Cons(head, Nil)
 
-//static member inline op_Explicit
-//    (
-//        Provide,
-//        f,
-//        (Cons(head, _): Cons<Fill<IA, int>, Nil>, _: IA)
-//    ) : Cons<Fill<IA, int>, Nil> =
-//    Cons(head, Nil)
 
 
 
@@ -191,16 +191,89 @@ let asList () = ahole ^+^ Nil
 let bsList () = bhole ^+^ Nil
 let absList () = ahole ^+^ bhole ^+^ Nil
 
-//let rec inline recurse (list: 'a, i) :Cons<Hole<IA, int>, Cons<Fill<IB, string>, _>>=
-//    Provider.op_Explicit (Provide, Resolve, recurse, (list, i))
-let rec inline recurse (list: 'a, i) : Cons<Hole<IA, int>, Cons<Fill<IB, string>, _>> =
-    Provider.op_Explicit (Provide, Resolve, recurse, (list, i))
+
+
+
+//[<AutoOpen>]
+//module LowPriority2 =
+//    type Recurser with
+
+//        static member inline op_Explicit
+//            (
+//                Recurser,
+//                f,
+//                (Cons(hole, tail): Cons<Hole<'iOther, 'r>, 'a>, i: 'i)
+//            ) : Cons<Hole<'iOther, 'r>, 'b> =
+//            Provider.op_Explicit (Provide, f, Recurser.op_Explicit, (tail, i))
+
+//        static member inline op_Explicit
+//            (
+//                Provide,
+//                f,
+//                recurse: ('a * 'i) -> 'b,
+//                ((Cons(fill, tail)): Cons<Fill<'iOther, 'r>, 'a>, i: 'i)
+//            ) : Cons<Fill<'iOther, 'r>, 'b> =
+//            let newHead = fill
+//            let newTail = f |** (recurse (tail, i))
+//            Cons(newHead, newTail)
+
+////static member inline op_Explicit
+////    (
+////        Provide,
+////        f,
+////        recurse: ('a * 'i) -> #TypeList,
+////        (Cons(head, tail): Cons<'c, 'a>, i: 'i)
+////    ) : Cons<#TypeList, #TypeList> =
+////    let newHead = f $ (head, i)
+////    let newTail = f $ (recurse (tail, i))
+////    Cons(newHead, newTail)
+
+
+////static member inline op_Explicit
+////    (
+////        Provide,
+////        f,
+////        (Cons(head, _): Cons<_, Nil>, _: 'i)
+////    ) : Cons<_, Nil> =
+////    Cons(head, Nil)
+
+//[<AutoOpen>]
+//module HighPriority2 =
+//    type Provider with
+
+//        static member inline op_Explicit
+//            (
+//                Provide,
+//                f,
+//                recurse: ('a * 'i) -> 'b,
+//                (Cons(hole, tail): Cons<Hole<'i, 'r>, 'a>, i: 'i)
+//            ) : Cons<Fill<'i, 'r>, 'b> =
+//            let newHead = f |***< (hole, i)
+//            let newTail = f |***> (recurse (tail, i))
+//            Cons(newHead, newTail)
+
+//        static member inline op_Explicit
+//            (
+//                Provide,
+//                f,
+//                recurse: ('a * 'i) -> 'b,
+//                ((Cons(fill, tail)): Cons<Fill<'i, 'r>, 'a>, i: 'i)
+//            ) : Cons<Fill<'i, 'r>, 'b> =
+//            let newHead = f |****< (fill, i)
+//            let newTail = f |****> (recurse (tail, i))
+//            Cons(newHead, newTail)
+
 
 //let t1 =
 //    Provider.op_Explicit (Provide, Resolve, recurse, (Cons(Hole((fun _ -> ())), Nil), 2))
 
 //let t1 =
 //    Provider.op_Explicit (Provide, Resolve, recurse, (Cons(Fill(2, (fun _ -> ())), Nil), 2))
+
+let provider = Provider.Provide
+
+let rec inline recurse tail i =
+    Provider.op_Explicit (Provide, Resolve, recurse, (tail, i))
 
 let asa () =
     Provider.op_Explicit (Provide, Resolve, recurse, (asList (), A))
@@ -214,10 +287,8 @@ let bsa () =
 let bsb () =
     Provider.op_Explicit (Provide, Resolve, recurse, (bsList (), B))
 
-let absa () =
+let absa () (*: Cons<Fill<IA, int>, Cons<Hole<IB, string>, Nil>>*) =
     Provider.op_Explicit (Provide, Resolve, recurse, (absList (), A))
 
-let absb () =
+let absb () : Cons<Hole<IA, int>, Cons<Fill<IB, string>, Nil>> =
     Provider.op_Explicit (Provide, Resolve, recurse, (absList (), B))
-
-//let next () = Provider.op_Explicit (Provide, Resolve, recurse, (absb (), A))
