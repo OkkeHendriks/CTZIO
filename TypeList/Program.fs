@@ -34,17 +34,32 @@ and Resolve =
     private
     | Resolve
 
-    static member inline ($)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|*)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|**)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|***<)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|***>)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****)(Resolve, (Hole(fn): Hole<'i, 'r>, i: 'i)) : Fill<'i, 'r> = Fill(i, fn)
 
     //static member inline ($)(Resolve, (Cons(Hole(fn), tail): Cons<Hole<'i, 'r>, _>, i: 'i)) : Cons<Fill<'i, 'r>, _> =
     //    Cons(Fill(i, fn), tail)
 
     //static member inline (|*)(Resolve, (Hole(fn): Hole<'iOther, 'r>, _: 'i)) : Hole<'iOther, 'r> = Hole(fn)
 
-    static member inline ($)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|*)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|**)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|***<)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|***>)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****<)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
+    static member inline (|****>)(Resolve, (Fill(i, fn): Fill<'i, 'r>, _: 'i)) : Fill<'i, 'r> = Fill(i, fn)
     //static member inline (|*)(Resolve, (Fill(i, fn): Fill<'iOther, 'r>, _: 'i)) : Fill<'iOther, 'r> = Fill(i, fn)
 
-    static member inline ($)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|*)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|**)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|***<)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|***>)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|****<)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
+    static member inline (|****>)(Resolve, (Nil: Nil, _: 'i)) : Nil = Nil
 
 [<AutoOpen>]
 module LowPriority =
@@ -54,22 +69,22 @@ module LowPriority =
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> #TypeList,
+                recurse: ('a * 'i) -> 'b,
                 (Cons(hole, tail): Cons<Hole<'iOther, 'r>, 'a>, i: 'i)
-            ) : Cons<Hole<'iOther, 'r>, 'a> =
+            ) : Cons<Hole<'iOther, 'r>, 'b> =
             let newHead = hole
-            let newTail = f $ (recurse (tail, i))
+            let newTail = f |* (recurse (tail, i))
             Cons(newHead, newTail)
 
         static member inline op_Explicit
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> #TypeList,
+                recurse: ('a * 'i) -> 'b,
                 ((Cons(fill, tail)): Cons<Fill<'iOther, 'r>, 'a>, i: 'i)
-            ) : Cons<Fill<'iOther, 'r>, 'a> =
+            ) : Cons<Fill<'iOther, 'r>, 'b> =
             let newHead = fill
-            let newTail = f $ (recurse (tail, i))
+            let newTail = f |** (recurse (tail, i))
             Cons(newHead, newTail)
 
 //static member inline op_Explicit
@@ -100,22 +115,22 @@ module HighPriority =
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> #TypeList,
+                recurse: ('a * 'i) -> 'b,
                 (Cons(hole, tail): Cons<Hole<'i, 'r>, 'a>, i: 'i)
-            ) : Cons<Fill<'i, 'r>, 'a> =
-            let newHead = f $ (hole, i)
-            let newTail = f $ (recurse (tail, i))
+            ) : Cons<Fill<'i, 'r>, 'b> =
+            let newHead = f |***< (hole, i)
+            let newTail = f |***> (recurse (tail, i))
             Cons(newHead, newTail)
 
         static member inline op_Explicit
             (
                 Provide,
                 f,
-                recurse: ('a * 'i) -> #TypeList,
+                recurse: ('a * 'i) -> 'b,
                 ((Cons(fill, tail)): Cons<Fill<'i, 'r>, 'a>, i: 'i)
-            ) : Cons<Fill<'i, 'r>, 'a> =
-            let newHead = f $ (fill, i)
-            let newTail = f $ (recurse (tail, i))
+            ) : Cons<Fill<'i, 'r>, 'b> =
+            let newHead = f |****< (fill, i)
+            let newTail = f |****> (recurse (tail, i))
             Cons(newHead, newTail)
 
 
@@ -176,8 +191,9 @@ let asList () = ahole ^+^ Nil
 let bsList () = bhole ^+^ Nil
 let absList () = ahole ^+^ bhole ^+^ Nil
 
-
-let rec inline recurse (list: 'a, i) =
+//let rec inline recurse (list: 'a, i) :Cons<Hole<IA, int>, Cons<Fill<IB, string>, _>>=
+//    Provider.op_Explicit (Provide, Resolve, recurse, (list, i))
+let rec inline recurse (list: 'a, i) : Cons<Hole<IA, int>, Cons<Fill<IB, string>, _>> =
     Provider.op_Explicit (Provide, Resolve, recurse, (list, i))
 
 //let t1 =
